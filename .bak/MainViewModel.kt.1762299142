@@ -1,0 +1,69 @@
+package od.app.ui
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import od.app.data.Repository
+import od.app.db.CharacterEntity
+import kotlin.random.Random
+import kotlin.math.max
+
+enum class Difficulty { EASY, NORMAL, HARD }
+data class UiState(
+    val character: CharacterEntity? = null,
+    val running: Boolean = false,
+    val difficulty: Difficulty = Difficulty.EASY,
+    val log: List<String> = emptyList()
+)
+
+class MainViewModel(app: Application) : AndroidViewModel(app) {
+    private val repo = Repository(app)
+    private val _state = MutableStateFlow(UiState())
+    val state: StateFlow<UiState> = _state
+    private var loop: Job? = null
+
+    init {
+        viewModelScope.launch { _state.value = _state.value.copy(character = repo.loadOrSeed()) }
+    }
+
+    fun start(d: Difficulty) {
+        if (loop != null) return
+        _state.value = _state.value.copy(running = true, difficulty = d)
+        loop = viewModelScope.launch {
+            while (true) { tickFight(); delay(2000) }
+        }
+    }
+
+    fun stop() { loop?.cancel(); loop = null; _state.value = _state.value.copy(running = false) }
+
+    private suspend fun tickFight() {
+        val cur = _state.value.character ?: return
+        val mHp = when (_state.value.difficulty) {
+            Difficulty.EASY -> 10 + Random.nextInt(6)
+            Difficulty.NORMAL -> 16 + Random.nextInt(8)
+            Difficulty.HARD -> 24 + Random.nextInt(10)
+        }
+        val mAtk = when (_state.value.difficulty) {
+            Difficulty.EASY -> 2 + Random.nextInt(3)
+            Difficulty.NORMAL -> 3 + Random.nextInt(3)
+            Difficulty.HARD -> 4 + Random.nextInt(4)
+        }
+        var p = cur.hp; var m = mHp
+        while (p > 0 && m > 0) {
+            m -= max(1, cur.attack + Random.nextInt(1,7))
+            if (m <= 0) break
+            p -= max(1, mAtk + Random.nextInt(0,3))
+        }
+        val win = p > 0
+        val after = if (win) repo.applyWin(cur) else repo.applyLoss(cur)
+        val line = if (win)
+            "WIN vs HP=$mHp atk=$mAtk → +atk,+hp → (${after.attack}/${after.hp})"
+        else
+            "LOSS vs HP=$mHp atk=$mAtk → -hp → (${after.attack}/${after.hp})"
+        _state.value = _state.value.copy(character = after, log = (listOf(line) + _state.value.log).take(20))
+    }
+}
