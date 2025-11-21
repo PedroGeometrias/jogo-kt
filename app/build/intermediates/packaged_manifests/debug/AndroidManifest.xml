@@ -19,6 +19,8 @@
         android:debuggable="true"
         android:extractNativeLibs="false"
         android:label="@string/app_name" >
+        <service android:name="od.app.service.BattleService" />
+
         <activity
             android:name="od.app.ui.MainActivity"
             android:exported="true" >

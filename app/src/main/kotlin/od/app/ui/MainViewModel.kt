@@ -1,6 +1,7 @@
 package od.app.ui
 
 import android.app.Application
+import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import od.app.data.Repository
 import od.app.db.CharacterEntity
+import od.app.service.BattleService
 import kotlin.random.Random
 
 enum class Mode(val base: Int) { WEAK(4), NORMAL(8), HARD(12) }
@@ -21,7 +23,8 @@ data class UiState(
     val wins: Int = 0,
     val running: Boolean = false,
     val mode: Mode = Mode.NORMAL,
-    val last: String = ""
+    val last: String = "",
+    val inBattle: Boolean = false
 )
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -40,41 +43,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun createDefault() = viewModelScope.launch {
-    val c = CharacterEntity(
-        name = "Herói",
-        race = "Humano",
-        clazz = "Guerreiro",
-        str = 10, dex = 10, con = 10, intel = 8, wis = 8, cha = 8,
-        atk = 5, hp = 12
-    )
-    repo.upsert(c)
-}
-
-fun createCharacter(difficulty: String) = viewModelScope.launch {
-    val stats = when (difficulty) {
-        "Heroic" -> listOf(16, 14, 15, 12, 10, 13, 8, 20)
-        "Adventurer" -> listOf(12, 12, 12, 10, 10, 10, 6, 15)
-        "Survivor" -> listOf(8, 10, 14, 8, 12, 9, 4, 12)
-        else -> listOf(10, 10, 10, 8, 8, 8, 5, 12)
+        val c = CharacterEntity(
+            name = "Herói",
+            race = "Humano",
+            clazz = "Guerreiro",
+            str = 10, dex = 10, con = 10, intel = 8, wis = 8, cha = 8,
+            atk = 5, hp = 12
+        )
+        repo.upsert(c)
     }
-    
-    val c = CharacterEntity(
-        name = "Hero",
-        race = "Human", 
-        clazz = "Adventurer",
-        str = stats[0], 
-        dex = stats[1], 
-        con = stats[2], 
-        intel = stats[3], 
-        wis = stats[4], 
-        cha = stats[5],
-        atk = stats[6], 
-        hp = stats[7]
-    )
-    repo.upsert(c)
-}
 
-fun toggle(mode: Mode? = null) {
+    fun toggle(mode: Mode? = null) {
         val m = mode ?: _state.value.mode
         if (_state.value.running) {
             loopJob?.cancel()
@@ -83,6 +62,25 @@ fun toggle(mode: Mode? = null) {
             _state.value = _state.value.copy(running = true, mode = m)
             loopJob = viewModelScope.launch { idleLoop() }
         }
+    }
+
+    // Simple background battle methods - just start/stop the notification service
+    fun startBackgroundBattle() {
+        val context = getApplication<Application>()
+        val intent = Intent(context, BattleService::class.java).apply {
+            action = BattleService.ACTION_START_BATTLE
+        }
+        context.startService(intent)
+        _state.value = _state.value.copy(inBattle = true)
+    }
+
+    fun stopBackgroundBattle() {
+        val context = getApplication<Application>()
+        val intent = Intent(context, BattleService::class.java).apply {
+            action = BattleService.ACTION_STOP_BATTLE
+        }
+        context.startService(intent)
+        _state.value = _state.value.copy(inBattle = false)
     }
 
     private suspend fun idleLoop() {
@@ -113,4 +111,3 @@ fun toggle(mode: Mode? = null) {
         return Triple(updated, win, log)
     }
 }
-

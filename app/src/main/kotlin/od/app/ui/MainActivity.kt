@@ -17,7 +17,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -41,7 +43,13 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     
-                    Screen(state, onCreate = vm::createDefault, onToggle = vm::toggle)
+                    Screen(
+                        state = state, 
+                        onCreate = vm::createDefault, 
+                        onToggle = vm::toggle,
+                        onStartBattle = vm::startBackgroundBattle,
+                        onStopBattle = vm::stopBackgroundBattle
+                    )
                 }
             }
         }
@@ -52,7 +60,9 @@ class MainActivity : ComponentActivity() {
 private fun Screen(
     state: UiState,
     onCreate: () -> Unit,
-    onToggle: (Mode?) -> Unit
+    onToggle: (Mode?) -> Unit,
+    onStartBattle: () -> Unit,
+    onStopBattle: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -84,9 +94,26 @@ private fun Screen(
             Text(if (state.running) "Stop" else "Start")
         }
 
+        // Background battle controls
+        Divider()
+        Text("Batalha em Background:", fontWeight = FontWeight.Bold)
+        Button(
+            onClick = { 
+                if (state.inBattle) onStopBattle() else onStartBattle() 
+            }
+        ) {
+            Text(if (state.inBattle) "Parar Batalha" else "Iniciar Batalha Background")
+        }
+
         Divider()
         Text("Fights: ${state.fights}  Wins: ${state.wins}")
         if (state.last.isNotBlank()) Text(state.last)
+        
+        // Show death message if HP is 0
+        val isDead by remember(c.hp) { derivedStateOf { c.hp <= 0 } }
+        if (isDead) {
+            Text("💀 SEU PERSONAGEM MORREU! 💀", color = MaterialTheme.colorScheme.error)
+        }
     }
 }
 
@@ -98,6 +125,3 @@ private fun ModeChip(text: String, selected: Boolean, onClick: () -> Unit) {
         leadingIcon = { if (selected) Text("✓") }
     )
 }
-
-
-    

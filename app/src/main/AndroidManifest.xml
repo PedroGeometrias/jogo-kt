@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application android:label="@string/app_name">
+    <service android:name=".service.BattleService" />
         <activity
             android:name="od.app.ui.MainActivity"
             android:exported="true">
